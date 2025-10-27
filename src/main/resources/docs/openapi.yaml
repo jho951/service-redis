@@ -1,0 +1,499 @@
+openapi: 3.1.0
+info:
+  title: 그림 API
+  version: 1.0.0
+  description: DrawerController 기준 JSON CRUD (soft delete/restore, 페이징)
+servers:
+  - url: /api
+tags:
+  - name: drawings
+    description: 그림 문서 CRUD
+
+paths:
+  /drawings:
+    get:
+      tags: [drawings]
+      summary: 목록 조회
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer, minimum: 1, default: 1 }
+          description: 1부터 시작
+        - in: query
+          name: size
+          schema: { type: integer, minimum: 1, maximum: 200, default: 20 }
+        - in: query
+          name: deleted
+          schema: { type: boolean, default: true }
+          description: true면 삭제목록(deleted_at IS NOT NULL), false면 미삭제 목록
+      responses:
+        '200':
+          description: OK
+          headers:
+            X-Total-Count:
+              description: 전체 건수
+              schema: { type: integer }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponsePageGetDrawerList'
+              examples:
+                ok:
+                  value:
+                    success: true
+                    status: 200
+                    message: ok
+                    path: /api/drawings
+                    data:
+                      total: 1
+                      page: 1
+                      size: 20
+                      items:
+                        - id: "2c1c6b9c-5d3a-4e5e-9b1a-40fd3e2b2a12"
+                          title: sample
+                          createdAt: "2025-10-13T02:15:00Z"
+                          updatedAt: "2025-10-13T02:15:00Z"
+                          deletedAt: null
+                          version: 0
+    post:
+      tags: [drawings]
+      summary: 그림 저장
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PostDrawerRequest' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponseIdOnly' }
+
+  /drawings/{id}:
+    get:
+      tags: [drawings]
+      summary: 단건 조회
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponseGetDrawer' }
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [drawings]
+      summary: 수정(전체 갱신, 낙관적 락)
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PutDrawerRequest' }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponsePutDrawer' }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+    delete:
+      tags: [drawings]
+      summary: 삭제(soft 또는 hard)
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+        - in: query
+          name: hard
+          schema: { type: boolean, default: false }
+          description: true면 하드 삭제(delete), 기본은 soft delete
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponseVoid' }
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /drawings/{id}/restore:
+    put:
+      tags: [drawings]
+      summary: 복원(soft delete 복구)
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          description: Restored
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponseVoid' }
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /drawings/{id}/export.xlsx:
+    get:
+      tags: [drawings]
+      summary: 단일 문서 엑셀(XLSX) 다운로드
+      description: 지정한 ID의 그림 문서 메타/페이로드를 워크북으로 생성해 XLSX 파일로 내려줍니다.
+      parameters:
+        - $ref: '#/components/parameters/IdParam'
+      responses:
+        '200':
+          description:
+            XLSX 파일 (Content-Disposition: attachment)
+          headers:
+            Content-Disposition:
+              description:
+                파일 다운로드를 위한 콘텐츠 디스포지션 헤더 (예: attachment; filename="..."; filename*=UTF-8''...)
+              schema:
+                type: string
+            Content-Length:
+              description: 바이트 길이
+              schema:
+                type: integer
+                minimum: 0
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /drawings/export.xlsx:
+    get:
+      tags: [drawings]
+      summary: 목록 엑셀(XLSX) 다운로드
+      description: 현재 조회 조건(페이지/사이즈/삭제여부)에 해당하는 문서 목록과 각 payload를 워크북으로 생성해 XLSX 파일로 내려줍니다.
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer, minimum: 1, default: 1 }
+          description: 1부터 시작
+        - in: query
+          name: size
+          schema: { type: integer, minimum: 1, maximum: 1000, default: 100 }
+        - in: query
+          name: deleted
+          schema: { type: boolean, nullable: true }
+          description: true면 삭제목록, false면 미삭제 목록, null이면 기본 동작
+      responses:
+        '200':
+          description:
+            XLSX 파일 (Content-Disposition: attachment)
+          headers:
+            Content-Disposition:
+              description:
+                파일 다운로드를 위한 콘텐츠 디스포지션 헤더 (예: attachment; filename="..."; filename*=UTF-8''...)
+              schema:
+                type: string
+            Content-Length:
+              description: 바이트 길이
+              schema:
+                type: integer
+                minimum: 0
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+
+components:
+  parameters:
+    IdParam:
+      in: path
+      name: id
+      required: true
+      schema: { type: string, format: uuid }
+      description: Drawing ID (UUID)
+
+  responses:
+    BadRequest:
+      description: 잘못된 요청
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiResponseError' }
+    NotFound:
+      description: 리소스를 찾을 수 없음
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiResponseError' }
+    Conflict:
+      description: 버전 불일치(낙관적 락 충돌)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiResponseError' }
+
+  schemas:
+    ApiResponseBase:
+      type: object
+      required: [success, status]
+      properties:
+        success: { type: boolean }
+        status: { type: integer }
+        message: { type: string, nullable: true }
+        path: { type: string, nullable: true }
+        timestamp: { type: string, format: date-time, nullable: true }
+
+    ApiResponseError:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponseBase'
+        - type: object
+          properties:
+            error:
+              type: object
+              properties:
+                code: { type: string }
+                detail: { type: string }
+
+    ApiResponseIdOnly:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponseBase'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/IdOnly'
+
+    ApiResponseGetDrawer:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponseBase'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/GetDrawer'
+
+    ApiResponsePutDrawer:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponseBase'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/PutDrawer'
+
+    ApiResponsePageGetDrawerList:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponseBase'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/PageGetDrawerList'
+
+    ApiResponseVoid:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponseBase'
+        - type: object
+          properties:
+            data:
+              nullable: true
+
+    IdOnly:
+      type: object
+      required: [id]
+      properties:
+        id: { type: string, format: uuid }
+
+    GetDrawerListItem:
+      type: object
+      required: [id, title]
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        createdAt: { type: string, format: date-time, nullable: true }
+        updatedAt: { type: string, format: date-time, nullable: true }
+        deletedAt: { type: string, format: date-time, nullable: true }
+        version: { type: integer, nullable: true }
+
+    PageGetDrawerList:
+      type: object
+      required: [items, total, page, size]
+      properties:
+        total: { type: integer, minimum: 0 }
+        page: { type: integer, minimum: 1 }
+        size: { type: integer, minimum: 1, maximum: 200 }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/GetDrawerListItem' }
+
+    GetDrawer:
+      type: object
+      required: [id, title, vectorJson]
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        vectorJson: { $ref: '#/components/schemas/VectorDocument' }
+        createdAt: { type: string, format: date-time, nullable: true }
+        updatedAt: { type: string, format: date-time, nullable: true }
+        version: { type: integer, nullable: true }
+
+    PutDrawer:
+      type: object
+      required: [id, title, version, vectorJson]
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        version: { type: integer }
+        vectorJson: { $ref: '#/components/schemas/VectorDocument' }
+
+    PostDrawerRequest:
+      type: object
+      required: [title, vectorJson]
+      properties:
+        title: { type: string }
+        vectorJson: { $ref: '#/components/schemas/VectorDocument' }
+
+    PutDrawerRequest:
+      type: object
+      required: [title, version, vectorJson]
+      properties:
+        title: { type: string }
+        version: { type: integer }
+        vectorJson: { $ref: '#/components/schemas/VectorDocument' }
+
+    VectorDocument:
+      type: object
+      additionalProperties: false
+      required: [schema, canvas, layers, render, hitmap]
+      properties:
+        schema: { type: integer, minimum: 1 }
+        canvas:
+          type: object
+          required: [width, height]
+          properties:
+            width: { type: integer, minimum: 1 }
+            height: { type: integer, minimum: 1 }
+            background: { type: string, nullable: true }
+            grid:
+              type: object
+              nullable: true
+              properties:
+                enabled: { type: boolean }
+                size: { type: integer, minimum: 1 }
+        layers:
+          type: array
+          items: { $ref: '#/components/schemas/Layer' }
+        render: { $ref: '#/components/schemas/RenderMeta' }
+        hitmap: { $ref: '#/components/schemas/HitmapMeta' }
+        meta:
+          type: object
+          nullable: true
+          additionalProperties: true
+
+    RenderMeta:
+      type: object
+      required: [buckets, assignment]
+      properties:
+        buckets:
+          type: array
+          items:
+            type: object
+            required: [id, type]
+            properties:
+              id: { type: string }
+              type:
+                type: string
+                enum: [background, content, overlay, tool-preview]
+              static: { type: boolean, nullable: true }
+              dirty: { type: boolean, nullable: true }
+        assignment:
+          type: object
+          additionalProperties: { type: string }
+
+    HitmapMeta:
+      type: object
+      required: [encoding, nextId]
+      properties:
+        encoding:
+          type: string
+          enum: [rgb24]
+        pickTolerance:
+          type: integer
+          minimum: 0
+          nullable: true
+        idToColor:
+          type: object
+          additionalProperties:
+            type: array
+            minItems: 3
+            maxItems: 3
+            items:
+              type: integer
+              minimum: 0
+              maximum: 255
+        nextId:
+          type: integer
+          minimum: 1
+
+    Layer:
+      type: object
+      additionalProperties: false
+      required: [id, type, visible, locked, transform]
+      properties:
+        id: { type: string }
+        nid:
+          type: integer
+          minimum: 1
+          nullable: true
+          description: hitmap용 정수 id(색상 매핑)
+        type:
+          type: string
+          enum: [text, line, rect, ellipse, polygon, polyline, path, image, group]
+        visible: { type: boolean }
+        locked: { type: boolean }
+        transform:
+          type: object
+          required: [x, y]
+          properties:
+            x: { type: number }
+            y: { type: number }
+            scaleX: { type: number, default: 1 }
+            scaleY: { type: number, default: 1 }
+            rotation: { type: number, default: 0 }
+        style:
+          type: object
+          nullable: true
+          additionalProperties: true
+          properties:
+            fill: { type: string, nullable: true }
+            stroke: { type: string, nullable: true }
+            strokeWidth: { type: number, nullable: true }
+            opacity: { type: number, minimum: 0, maximum: 1, nullable: true }
+            dash: { type: array, items: { type: number }, nullable: true }
+            font: { type: string, nullable: true }
+            fontSize: { type: number, nullable: true }
+            textAlign:
+              type: string
+              enum: [left, center, right]
+              nullable: true
+        props:
+          type: object
+          additionalProperties: true
+        children:
+          type: array
+          items: { $ref: '#/components/schemas/Layer' }
+          nullable: true
+        flags:
+          type: object
+          nullable: true
+          properties:
+            pickable: { type: boolean }
+            clip: { type: boolean }
+        bbox:
+          type: object
+          nullable: true
+          properties:
+            x: { type: number }
+            y: { type: number }
+            w: { type: number }
+            h: { type: number }

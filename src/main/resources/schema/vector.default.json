@@ -1,0 +1,15 @@
+{
+  "canvas": { "width": 1920, "height": 1080, "background": "#f5f5f5" },
+  "layers": [
+    {
+      "id": "rect-1",
+      "type": "rect",
+      "visible": true,
+      "locked": false,
+      "transform": { "x": 0, "y": 0, "scaleX": 1, "scaleY": 1, "rotation": 0 },
+      "style": { "stroke": "#333", "fill": "#fff", "strokeWidth": 2 },
+      "props": { "w": 200, "h": 120 }
+    }
+  ],
+  "view": { "scale": 1, "tx": 0, "ty": 0 } 
+}

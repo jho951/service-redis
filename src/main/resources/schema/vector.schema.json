@@ -1,0 +1,23 @@
+{
+  "$id": "https://example.com/vector.schema.json",
+  "title": "VectorDocument v1",
+  "type": "object",
+  "required": ["canvas", "layers"],
+  "additionalProperties": true,
+  "properties": {
+    "canvas": {
+      "type": "object",
+      "required": ["width", "height"],
+      "additionalProperties": false,
+      "properties": {
+        "width": { "type": "integer", "minimum": 1 },
+        "height": { "type": "integer", "minimum": 1 },
+        "background": { "type": ["string", "null"] }
+      }
+    },
+    "layers": {
+      "type": "array",
+      "items": { "type": "object" }
+    }
+  }
+}

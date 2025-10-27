@@ -1,0 +1,23 @@
+# src/main/resources/application-prod.yml
+spring:
+  # prod 프로파일이 활성화될 때 이 파일이 로드됩니다.
+  datasource:
+    # 운영 DB 접속 정보 (보통은 환경 변수로 설정)
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+
+logging:
+  level:
+    # 공통 설정(INFO)을 사용하고, dev와 달리 별도 설정을 하지 않으면 INFO가 적용됩니다.
+    com.drawer: INFO # 명시적으로 지정하거나 생략 가능.
+
+security:
+  jwt:
+    # 운영 환경에서만 사용되는 Secret은 반드시 환경 변수로 설정해야 합니다.
+    secret: ${SECURITY_JWT_SECRET}
+
+mybatis:
+  configuration:
+    # 운영 환경에서는 캐시를 활성화하고 싶다면 공통 설정(false)을 덮어씁니다.
+    cache-enabled: true
