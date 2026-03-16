@@ -2,12 +2,7 @@ plugins {
     id 'java'
     id 'org.springframework.boot' version '3.4.10'
     id 'io.spring.dependency-management' version '1.1.6'
-    id 'eclipse'
 }
-
-group = 'com.drawer'
-version = '0.0.1-SNAPSHOT'
-description = 'Drawing App (Spring Boot + MyBatis + PostgreSQL + Swagger)'
 
 java {
     toolchain { languageVersion = JavaLanguageVersion.of(17) }
@@ -18,96 +13,11 @@ repositories {
 }
 
 dependencies {
-    // Spring Boot starters
     implementation 'org.springframework.boot:spring-boot-starter-web'
-    implementation 'org.springframework.boot:spring-boot-starter-validation'
-    implementation 'org.springframework.boot:spring-boot-starter-actuator'
-
-    // MyBatis
-    implementation 'org.mybatis.spring.boot:mybatis-spring-boot-starter:3.0.5'
-    implementation "org.mybatis:mybatis-typehandlers-jsr310:1.0.2" // java.time 매핑
-
-    // OpenAPI/Swagger (springdoc)
-    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.13'
-
-    // JSON Schema validator (네트워크NT)
-    implementation "com.networknt:json-schema-validator:1.4.0"
-
-    // Apache POI (엑셀)
-    implementation 'org.apache.poi:poi-ooxml:5.4.0'
-
-    // commons (Boot BOM이 버전 관리해줌)
-    implementation "org.apache.commons:commons-compress"
-    implementation "org.apache.commons:commons-collections4"
-
-    // Lombok
-    compileOnly 'org.projectlombok:lombok'
-    annotationProcessor 'org.projectlombok:lombok'
-    // (옵션) yml @ConfigurationProperties 메타 생성
-    annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
-
-    // spring security
-    implementation 'org.springframework.boot:spring-boot-starter-security'
-
-    // DB Driver
-    implementation 'org.postgresql:postgresql:42.7.7'
-
-    // Test
-    testImplementation 'org.springframework.boot:spring-boot-starter-test'
-    testCompileOnly 'org.projectlombok:lombok'
-    testAnnotationProcessor 'org.projectlombok:lombok'
-    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.10.2'
-    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.10.2'
-    testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.10.2'
-
-
-    implementation 'org.springframework.boot:spring-boot-starter-security'
-    // JWT 검증
-    implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
-    // Nimbus JOSE JWT 포함
-    implementation 'org.springframework.security:spring-security-oauth2-jose'
-
-    // 토큰 발급용 (Spring이 검증엔 nimbus를 쓰지만, 발급은 직접)
-    implementation 'com.nimbusds:nimbus-jose-jwt:9.37.3'
-
-    // 패스워드 해시
-    implementation 'org.springframework.security:spring-security-crypto'
-
-    // redis
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'
-    implementation 'io.lettuce:lettuce-core'
-
-
-
-
-
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
 }
 
 tasks.named('test') {
     useJUnitPlatform()
-    maxParallelForks = 1
-    testLogging {
-        events "passed", "skipped", "failed"
-        exceptionFormat "full"
-        showStandardStreams = true
-    }
-}
-
-/**
- * ⚠️ Dockerfile에서 복사/실행하는 JAR 이름과 반드시 일치시켜야 함
- *   - Dockerfile이 `COPY build/libs/app.jar app.jar`라면 archiveFileName을 app.jar로
- *   - 아니면 Dockerfile을 drawing-app.jar에 맞게 바꿔도 됨
- */
-bootJar {
-    archiveFileName = 'app.jar'  // ← Dockerfile이 app.jar 기준이면 이렇게
-    // archiveFileName = 'drawing-app.jar'
-}
-
-jar { enabled = false }
-
-eclipse {
-    classpath {
-        downloadSources = true
-        downloadJavadoc = true
-    }
 }
