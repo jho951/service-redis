@@ -19,5 +19,5 @@ out/
 .vscode/
 
 .env
-redis/data/
-redis/logs/
+docker/data/
+docker/logs/

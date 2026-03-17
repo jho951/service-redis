@@ -1,0 +1,23 @@
+services:
+  redis:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: central-redis:v1
+    container_name: central-redis
+    restart: unless-stopped
+    env_file:
+      - ../env/.env.dev
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - ./data:/data
+      - ./logs:/var/log/redis
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - redis-cli -a "$${REDIS_PASSWORD}" ping | grep PONG
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
