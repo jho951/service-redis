@@ -8,6 +8,7 @@
 - 실행 방식: Docker Compose
 - 인스턴스 수: 1
 - endpoint: `redis://central-redis:6379`
+- network: `redis-core`
 
 ## Start
 
@@ -15,6 +16,12 @@
 
 ```bash
 ./docker/run.sh up
+```
+
+모니터링 포함 실행:
+
+```bash
+./docker/run.sh up-monitoring
 ```
 
 중지:
@@ -28,6 +35,12 @@
 ```bash
 ./docker/run.sh ps
 ./docker/run.sh logs
+```
+
+metrics 확인:
+
+```text
+http://localhost:9121/metrics
 ```
 
 ## Health Check
@@ -63,6 +76,8 @@ Persistence:
 예시:
 
 - `redis://:password@central-redis:6379`
+
+Docker Compose 기반 서비스는 `redis-core` 네트워크에 참가해야 한다.
 
 서비스별 논리 분리는 key prefix로 처리한다.
 

@@ -20,6 +20,12 @@ Redis 서버 시작:
 ./docker/run.sh up
 ```
 
+모니터링 포함 시작:
+
+```bash
+./docker/run.sh up-monitoring
+```
+
 상태 확인:
 
 ```bash
@@ -42,6 +48,12 @@ Redis 서버 시작:
 
 ```bash
 ./docker/run.sh restart
+```
+
+모니터링 로그:
+
+```bash
+./docker/run.sh logs-monitoring
 ```
 
 ## Structure
@@ -67,6 +79,7 @@ docs/
 - image: `central-redis:v1`
 - container: `central-redis`
 - default port: `6379`
+- metrics port: `9121`
 - config: [`docker/redis.conf`](/Users/jhons/Downloads/BE/redis-server/docker/redis.conf)
 - compose: [`docker/docker-compose.yml`](/Users/jhons/Downloads/BE/redis-server/docker/docker-compose.yml)
 
@@ -83,9 +96,12 @@ docs/
 주요 변수:
 
 - `REDIS_PORT`
+- `REDIS_BIND_PORT`
 - `REDIS_PASSWORD`
 - `REDIS_MAXMEMORY`
 - `REDIS_MAXMEMORY_POLICY`
+- `REDIS_NETWORK_NAME`
+- `REDIS_EXPORTER_PORT`
 
 ## Connection
 
@@ -110,3 +126,4 @@ redis://:local-dev-redis-password@localhost:6379
 - 구조 문서: [`docs/Redis-Infrastructure-Structure.md`](/Users/jhons/Downloads/BE/redis-server/docs/Redis-Infrastructure-Structure.md)
 - 운영 문서: [`docs/Redis-Runbook.md`](/Users/jhons/Downloads/BE/redis-server/docs/Redis-Runbook.md)
 - V1 정책 문서: [`docs/Requirement.md`](/Users/jhons/Downloads/BE/redis-server/docs/Requirement.md)
+- MSA 통합 문서: [`docs/Redis-MSA-Integration.md`](/Users/jhons/Downloads/BE/redis-server/docs/Redis-MSA-Integration.md)

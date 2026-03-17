@@ -12,6 +12,9 @@ case "$COMMAND" in
   up)
     docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --build
     ;;
+  up-monitoring)
+    docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" --profile monitoring up -d --build
+    ;;
   down)
     docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" down
     ;;
@@ -22,11 +25,14 @@ case "$COMMAND" in
   logs)
     docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" logs -f redis
     ;;
+  logs-monitoring)
+    docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" logs -f redis-exporter
+    ;;
   ps)
     docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" ps
     ;;
   *)
-    echo "Usage: ./docker/run.sh [up|down|restart|logs|ps]" >&2
+    echo "Usage: ./docker/run.sh [up|up-monitoring|down|restart|logs|logs-monitoring|ps]" >&2
     exit 1
     ;;
 esac
