@@ -14,20 +14,20 @@
 개발 환경 실행:
 
 ```bash
-docker compose --env-file ./env/.env.dev up -d
+./docker/run.sh up
 ```
 
 중지:
 
 ```bash
-docker compose --env-file ./env/.env.dev down
+./docker/run.sh down
 ```
 
 상태 확인:
 
 ```bash
-docker compose ps
-docker compose logs redis
+./docker/run.sh ps
+./docker/run.sh logs
 ```
 
 ## Health Check
@@ -48,8 +48,8 @@ PONG
 
 볼륨 경로:
 
-- `./redis/data`
-- `./redis/logs`
+- `./docker/data`
+- `./docker/logs`
 
 Persistence:
 
@@ -102,7 +102,7 @@ V1에서는 다음을 기본으로 한다.
 ## Recovery
 
 1. 기존 컨테이너 중지
-2. `redis/data` 보존 여부 확인
+2. `docker/data` 보존 여부 확인
 3. 필요 시 백업 데이터 복원
 4. 컨테이너 재기동
 5. `PING`, key 조회, 서비스 연결 확인
@@ -115,4 +115,3 @@ V2에서 검토할 항목:
 - 장애 조치
 - 모니터링 고도화
 - 백업 자동화
-

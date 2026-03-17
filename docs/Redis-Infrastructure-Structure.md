@@ -1,13 +1,10 @@
-# Redis Infrastructure Structure
+# Redis 서버
 
-이 문서는 현재 저장소를 Spring Boot 애플리케이션이 아니라 중앙 Redis 인프라 프로젝트로 운영할 때의 구조를 정의한다.
+**중앙 Redis 인프라 프로젝트 구조를 정의합니다.**
 
-## Goal
+## 목표
 
-이 프로젝트의 목적은 애플리케이션을 실행하는 것이 아니라,
-Gateway, Auth, Permission 등 여러 서비스가 공통으로 사용하는 중앙 Redis 서버를 구성하고 운영하는 것이다.
-
-따라서 이 저장소는 다음 역할을 가진다.
+**여러 서비스가 공통으로 사용하는 중앙 Redis 서버를 구성하고 운영하며 다음 역할을 가집니다.**
 
 - Redis 1대 실행
 - 단일 endpoint 제공

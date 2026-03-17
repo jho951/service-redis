@@ -18,6 +18,14 @@ out/
 ### VS Code ###
 .vscode/
 
+### Environment ###
 .env
+env/.env.*
+!env/.env.prod.example
+
+### Local Build ###
+build/
+
+### Docker Runtime ###
 docker/data/
 docker/logs/
