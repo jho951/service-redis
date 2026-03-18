@@ -50,6 +50,127 @@ spring:
 - 비밀번호는 Secret Manager 또는 런타임 비밀 주입으로 관리한다.
 - 소스 저장소에는 실 비밀번호를 넣지 않는다.
 
+## Compose Integration
+
+Docker Compose 기반 MSA에서는 각 서비스의 `docker-compose.yml`에도 Redis 접속 정보가 들어가야 한다.
+
+중요:
+
+- 각 서비스 compose에 Redis 서버 컨테이너를 또 만들 필요는 없다.
+- 각 서비스 compose에는 중앙 Redis에 접속하기 위한 환경변수와 네트워크 설정만 넣는다.
+
+즉 역할은 다음처럼 나뉜다.
+
+- 중앙 Redis 저장소의 compose: Redis 서버 실행
+- 각 서비스 저장소의 compose: 중앙 Redis 접속 설정만 주입
+
+## Same Host Deployment
+
+같은 Docker host에서 여러 compose를 함께 운영하는 경우에는 공용 Docker network를 사용하면 된다.
+
+예시:
+
+```yaml
+services:
+  auth:
+    image: your-auth-service
+    environment:
+      REDIS_HOST: central-redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      REDIS_SSL: "false"
+    networks:
+      - redis-core
+
+networks:
+  redis-core:
+    external: true
+    name: redis-core
+```
+
+설명:
+
+- `central-redis`는 Redis 컨테이너 이름 또는 네트워크 DNS 이름이다.
+- 각 서비스는 `redis-core` 네트워크에 참가해야 한다.
+- Redis 포트를 외부에 열지 않아도 내부 네트워크 통신은 가능하다.
+
+## Multi Host Deployment
+
+서비스가 서로 다른 서버에 배포된다면 Docker network 이름만으로는 연결되지 않는다.
+
+이 경우에는 중앙 Redis 서버를 내부 DNS 또는 고정 private IP로 노출해야 한다.
+
+예시:
+
+```yaml
+services:
+  auth:
+    image: your-auth-service
+    environment:
+      REDIS_HOST: redis.internal.company
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      REDIS_SSL: "false"
+```
+
+또는:
+
+```text
+REDIS_HOST=10.10.20.15
+REDIS_PORT=6379
+REDIS_PASSWORD=...
+REDIS_SSL=false
+```
+
+설명:
+
+- 이 경우 `redis-core` Docker network는 서비스 간 공유 수단이 아니다.
+- Redis 접근은 VPC, 보안그룹, 방화벽 규칙으로 제한해야 한다.
+- 가능하면 public IP 대신 private DNS를 사용한다.
+
+## What Must Be Added To Each Service Compose
+
+각 서비스 compose에는 최소한 아래 정보가 필요하다.
+
+- `REDIS_HOST`
+- `REDIS_PORT`
+- `REDIS_PASSWORD`
+- `REDIS_SSL`
+
+같은 서버 운영이면 추가로:
+
+- `networks: redis-core`
+
+다른 서버 운영이면 추가로:
+
+- Redis 서버 private DNS 또는 private IP
+- 네트워크/보안 정책 반영
+
+## Example Service Compose
+
+Spring Boot 서비스 예시:
+
+```yaml
+services:
+  gateway:
+    image: your-gateway-service
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      REDIS_HOST: central-redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      REDIS_SSL: "false"
+    networks:
+      - redis-core
+
+networks:
+  redis-core:
+    external: true
+    name: redis-core
+```
+
+이 설정이 있으면 서비스 내부에서는 기존 문서의 `spring.data.redis.*` 설정으로 중앙 Redis에 붙을 수 있다.
+
 ## Key Prefix Policy
 
 모든 키는 아래 형식을 따른다.
