@@ -7,6 +7,7 @@
 - Redis 1대 운영
 - 단일 endpoint 제공
 - Docker 기반 실행
+- 애플리케이션 레포와 분리된 공용 인프라
 - 서비스별 key prefix 분리 정책 문서화
 
 따라서 `gradle build`가 동작하지 않는 것은 정상이다.
@@ -98,6 +99,7 @@ docs/
 - `REDIS_PORT`
 - `REDIS_BIND_PORT`
 - `REDIS_PASSWORD`
+- `REDIS_SSL`
 - `REDIS_MAXMEMORY`
 - `REDIS_MAXMEMORY_POLICY`
 - `REDIS_NETWORK_NAME`
@@ -112,6 +114,11 @@ docs/
 ```text
 redis://:local-dev-redis-password@localhost:6379
 ```
+
+원칙:
+
+- 각 서비스는 `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`, `REDIS_SSL`로 접속
+- source of truth는 DB/원본 서비스에 두고 Redis는 캐시/임시 상태만 담당
 
 논리 분리는 key prefix로 수행한다.
 

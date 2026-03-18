@@ -16,6 +16,7 @@
 - Redis 서버는 1대
 - 단일 endpoint 사용
 - 서비스별 key prefix 분리
+- Redis는 애플리케이션 레포와 분리된 공용 인프라로 운영
 
 ## Connection Settings
 
@@ -49,6 +50,7 @@ spring:
 - 서비스별로 다른 Redis endpoint를 쓰지 않는다.
 - 비밀번호는 Secret Manager 또는 런타임 비밀 주입으로 관리한다.
 - 소스 저장소에는 실 비밀번호를 넣지 않는다.
+- source of truth는 DB 또는 원본 서비스에 두고 Redis는 캐시/임시 상태만 담당한다.
 
 ## Compose Integration
 
@@ -127,6 +129,50 @@ REDIS_SSL=false
 - 이 경우 `redis-core` Docker network는 서비스 간 공유 수단이 아니다.
 - Redis 접근은 VPC, 보안그룹, 방화벽 규칙으로 제한해야 한다.
 - 가능하면 public IP 대신 private DNS를 사용한다.
+
+## Kubernetes Deployment
+
+같은 Kubernetes cluster 안에서 운영한다면 Redis Service DNS로 연결하면 된다.
+
+예시:
+
+```text
+REDIS_HOST=central-redis.default.svc.cluster.local
+REDIS_PORT=6379
+REDIS_PASSWORD=...
+REDIS_SSL=false
+```
+
+설명:
+
+- 각 서비스는 Redis Kubernetes Service 이름으로 접속한다.
+- 같은 cluster 내부 통신이면 private DNS로 충분하다.
+- 외부 노출은 필요한 경우에만 별도로 구성한다.
+
+## Managed Redis Deployment
+
+Managed Redis를 사용할 경우에는 Docker network 대신 제공된 endpoint로 접속한다.
+
+예시:
+
+```text
+REDIS_HOST=my-redis.xxxxxx.apn2.cache.amazonaws.com
+REDIS_PORT=6379
+REDIS_PASSWORD=...
+REDIS_SSL=true
+```
+
+대상 예시:
+
+- AWS ElastiCache
+- Google Memorystore
+- Redis Cloud
+
+설명:
+
+- managed Redis는 서비스 제공자의 endpoint를 그대로 사용한다.
+- SSL 요구 여부는 서비스 설정에 맞춘다.
+- 이 경우에도 key prefix, TTL, 무효화 정책은 동일하게 유지한다.
 
 ## What Must Be Added To Each Service Compose
 
@@ -314,6 +360,13 @@ http://localhost:9121/metrics
 - rejected connections
 - evicted keys
 - keyspace hits / misses
+
+확장 단계에서는 다음도 포함한다.
+
+- 장애 감지 알림
+- 복구 절차 표준화
+- 백업 복원 리허설
+- 운영 대시보드 고도화
 
 ## Service Checklist
 
