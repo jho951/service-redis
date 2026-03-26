@@ -2,62 +2,33 @@
 
 이 저장소는 Spring Boot 애플리케이션이 아니라 중앙 Redis 인프라 저장소다.
 
-## What This Repository Is
+## 목적
 
-- Redis 1대 운영
-- 단일 endpoint 제공
-- Docker 기반 실행
-- 애플리케이션 레포와 분리된 공용 인프라
-- 서비스별 key prefix 분리 정책 문서화
+- Redis 단일 인스턴스 운영
+- 공용 endpoint 제공
+- Docker Compose 기반 실행
+- 서비스별 key prefix, TTL, 운영 원칙 문서화
 
-따라서 `gradle build`가 동작하지 않는 것은 정상이다.
-이 저장소는 Gradle 프로젝트가 아니다.
+Redis는 캐시와 임시 상태 저장소로만 사용한다.
+원본 데이터의 source of truth는 각 서비스가 가진다.
 
-## Quick Start
-
-Redis 서버 시작:
+## 빠른 시작
 
 ```bash
-./docker/run.sh up
+./scripts/run.docker.sh up
+./scripts/run.docker.sh up-monitoring
+./scripts/run.docker.sh ps
+./scripts/run.docker.sh logs
+./scripts/run.docker.sh down
 ```
 
-모니터링 포함 시작:
+로컬 바이너리 실행:
 
 ```bash
-./docker/run.sh up-monitoring
+./scripts/run.local.sh
 ```
 
-상태 확인:
-
-```bash
-./docker/run.sh ps
-```
-
-로그 확인:
-
-```bash
-./docker/run.sh logs
-```
-
-중지:
-
-```bash
-./docker/run.sh down
-```
-
-재시작:
-
-```bash
-./docker/run.sh restart
-```
-
-모니터링 로그:
-
-```bash
-./docker/run.sh logs-monitoring
-```
-
-## Structure
+## 구조
 
 ```text
 docker/
@@ -65,72 +36,48 @@ docker/
   docker-compose.yml
   docker-entrypoint.sh
   redis.conf
-  run.sh
-env/
-  .env.dev
-  .env.prod.example
+scripts/
+  run.docker.sh
+  run.local.sh
+env.dev
+env.prod
+env.example
 docs/
   Requirement.md
-  Redis-Infrastructure-Structure.md
   Redis-Runbook.md
+  Extension.md
 ```
 
-## Runtime
+## 런타임
 
 - image: `central-redis:v1`
 - container: `central-redis`
-- default port: `6379`
+- redis port: `6379`
 - metrics port: `9121`
 - config: [`docker/redis.conf`](/Users/jhons/Downloads/BE/redis-server/docker/redis.conf)
 - compose: [`docker/docker-compose.yml`](/Users/jhons/Downloads/BE/redis-server/docker/docker-compose.yml)
 
-## Environment
+## 연결 원칙
 
-개발 환경 변수:
-
-- [`env/.env.dev`](/Users/jhons/Downloads/BE/redis-server/env/.env.dev)
-
-운영 예시:
-
-- [`env/.env.prod.example`](/Users/jhons/Downloads/BE/redis-server/env/.env.prod.example)
-
-주요 변수:
-
-- `REDIS_PORT`
-- `REDIS_BIND_PORT`
-- `REDIS_PASSWORD`
-- `REDIS_SSL`
-- `REDIS_MAXMEMORY`
-- `REDIS_MAXMEMORY_POLICY`
-- `REDIS_NETWORK_NAME`
-- `REDIS_EXPORTER_PORT`
-
-## Connection
-
-서비스들은 같은 endpoint를 사용한다.
+- 모든 서비스는 동일한 Redis endpoint를 사용한다.
+- 물리 분리 대신 key prefix로 논리 분리한다.
+- 서비스별로 다른 Redis를 붙이지 않는다.
+- TTL은 서비스 코드에서 키 저장 시점에 설정한다.
 
 예시:
 
 ```text
-redis://:local-dev-redis-password@localhost:6379
+redis://:password@central-redis:6379
+gateway:rate-limit:{clientKey}
+auth:session:{sessionId}
+permission:policy-cache:{roleId}
 ```
 
-원칙:
+## 문서
 
-- 각 서비스는 `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`, `REDIS_SSL`로 접속
-- source of truth는 DB/원본 서비스에 두고 Redis는 캐시/임시 상태만 담당
-
-논리 분리는 key prefix로 수행한다.
-
-예시:
-
-- `gateway:rate-limit:*`
-- `auth:session:*`
-- `permission:policy-cache:*`
-
-## Documents
-
-- 구조 문서: [`docs/Redis-Infrastructure-Structure.md`](/Users/jhons/Downloads/BE/redis-server/docs/Redis-Infrastructure-Structure.md)
-- 운영 문서: [`docs/Redis-Runbook.md`](/Users/jhons/Downloads/BE/redis-server/docs/Redis-Runbook.md)
-- V1 정책 문서: [`docs/Requirement.md`](/Users/jhons/Downloads/BE/redis-server/docs/Requirement.md)
-- MSA 통합 문서: [`docs/Redis-MSA-Integration.md`](/Users/jhons/Downloads/BE/redis-server/docs/Redis-MSA-Integration.md)
+- 현재 구조와 정책: [`docs/Requirement.md`](/Users/jhons/Downloads/BE/redis-server/docs/Requirement.md)
+- 운영 절차: [`docs/Redis-Runbook.md`](/Users/jhons/Downloads/BE/redis-server/docs/Redis-Runbook.md)
+- 향후 확장: [`docs/Extension.md`](/Users/jhons/Downloads/BE/redis-server/docs/Extension.md)
+- 축약 안내:
+  [`docs/Design.md`](/Users/jhons/Downloads/BE/redis-server/docs/Design.md),
+  [`docs/Redis-MSA-Integration.md`](/Users/jhons/Downloads/BE/redis-server/docs/Redis-MSA-Integration.md)

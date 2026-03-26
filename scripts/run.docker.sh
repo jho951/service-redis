@@ -3,8 +3,8 @@ set -eu
 
 BASE_DIR="$(CDPATH= cd -- "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(CDPATH= cd -- "$BASE_DIR/.." && pwd)"
-COMPOSE_FILE="$BASE_DIR/docker-compose.yml"
-ENV_FILE="$ROOT_DIR/env/.env.dev"
+COMPOSE_FILE="$ROOT_DIR/docker/docker-compose.yml"
+ENV_FILE="${ENV_FILE:-$ROOT_DIR/env.dev}"
 
 COMMAND="${1:-up}"
 
@@ -32,7 +32,8 @@ case "$COMMAND" in
     docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" ps
     ;;
   *)
-    echo "Usage: ./docker/run.sh [up|up-monitoring|down|restart|logs|logs-monitoring|ps]" >&2
+    echo "Usage: ./scripts/run.docker.sh [up|up-monitoring|down|restart|logs|logs-monitoring|ps]" >&2
+    echo "Environment: set ENV_FILE=/path/to/env.file if you do not want $ROOT_DIR/env.dev" >&2
     exit 1
     ;;
 esac
