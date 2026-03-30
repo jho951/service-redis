@@ -16,7 +16,7 @@ services:
       - ./data:/data
       - ./logs:/var/log/redis
     networks:
-      - service-backbone-shared
+      - shared-service-network
     healthcheck:
       test:
         - CMD-SHELL
@@ -41,9 +41,9 @@ services:
       redis-server:
         condition: service_healthy
     networks:
-      - service-backbone-shared
+      - shared-service-network
 
 networks:
-  service-backbone-shared:
+  shared-service-network:
     external: true
     name: ${SHARED_SERVICE_NETWORK:-service-backbone-shared}
