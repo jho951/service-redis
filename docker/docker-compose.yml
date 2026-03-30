@@ -1,5 +1,5 @@
 services:
-  redis:
+  redis-server:
     build:
       context: ..
       dockerfile: docker/Dockerfile
@@ -7,7 +7,7 @@ services:
     container_name: central-redis
     restart: unless-stopped
     environment:
-      REDIS_PASSWORD: "${REDIS_PASSWORD}"
+      REDIS_PASSWORD: "${REDIS_PASSWORD:-}"
       REDIS_MAXMEMORY: "${REDIS_MAXMEMORY:-256mb}"
       REDIS_MAXMEMORY_POLICY: "${REDIS_MAXMEMORY_POLICY:-allkeys-lru}"
     ports:
@@ -16,11 +16,11 @@ services:
       - ./data:/data
       - ./logs:/var/log/redis
     networks:
-      - redis-core
+      - service-backbone-shared
     healthcheck:
       test:
         - CMD-SHELL
-        - redis-cli -a "$${REDIS_PASSWORD}" ping | grep PONG
+        - if [ -n "$${REDIS_PASSWORD}" ]; then redis-cli -a "$${REDIS_PASSWORD}" ping | grep PONG; else redis-cli ping | grep PONG; fi
       interval: 10s
       timeout: 5s
       retries: 5
@@ -33,16 +33,17 @@ services:
     profiles:
       - monitoring
     environment:
-      REDIS_ADDR: "redis://redis:6379"
-      REDIS_PASSWORD: "${REDIS_PASSWORD}"
+      REDIS_ADDR: "redis://redis-server:6379"
+      REDIS_PASSWORD: "${REDIS_PASSWORD:-}"
     ports:
       - "${REDIS_EXPORTER_PORT:-9121}:9121"
     depends_on:
-      redis:
+      redis-server:
         condition: service_healthy
     networks:
-      - redis-core
+      - service-backbone-shared
 
 networks:
-  redis-core:
-    name: ${REDIS_NETWORK_NAME:-redis-core}
+  service-backbone-shared:
+    external: true
+    name: ${SHARED_SERVICE_NETWORK:-service-backbone-shared}

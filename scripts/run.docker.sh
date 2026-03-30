@@ -23,7 +23,7 @@ case "$COMMAND" in
     docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --build
     ;;
   logs)
-    docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" logs -f redis
+    docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" logs -f redis-server
     ;;
   logs-monitoring)
     docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" logs -f redis-exporter
