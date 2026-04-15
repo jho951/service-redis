@@ -1,22 +1,25 @@
+name: ${COMPOSE_PROJECT_NAME:-redis-server}
+
 services:
   redis-server:
     build:
       context: ..
       dockerfile: docker/Dockerfile
-    image: central-redis:v1
-    container_name: central-redis
+    image: ${REDIS_IMAGE:-central-redis}
+    container_name: ${REDIS_CONTAINER_NAME:-central-redis}
     restart: unless-stopped
     environment:
+      REDIS_CONFIG_FILE: "${REDIS_CONFIG_FILE:-/usr/local/etc/redis/redis.conf}"
       REDIS_PASSWORD: "${REDIS_PASSWORD:-}"
       REDIS_MAXMEMORY: "${REDIS_MAXMEMORY:-256mb}"
       REDIS_MAXMEMORY_POLICY: "${REDIS_MAXMEMORY_POLICY:-allkeys-lru}"
-    ports:
-      - "${REDIS_BIND_PORT:-6379}:6379"
     volumes:
-      - ./data:/data
-      - ./logs:/var/log/redis
+      - ${REDIS_DATA_VOLUME:-./data}:/data
+      - ${REDIS_LOG_VOLUME:-./logs}:/var/log/redis
     networks:
-      - shared-service-network
+      shared-service-network:
+        aliases:
+          - central-redis
     healthcheck:
       test:
         - CMD-SHELL
@@ -35,8 +38,6 @@ services:
     environment:
       REDIS_ADDR: "redis://redis-server:6379"
       REDIS_PASSWORD: "${REDIS_PASSWORD:-}"
-    ports:
-      - "${REDIS_EXPORTER_PORT:-9121}:9121"
     depends_on:
       redis-server:
         condition: service_healthy

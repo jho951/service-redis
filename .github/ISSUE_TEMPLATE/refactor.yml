@@ -1,7 +1,7 @@
 name: Refactor
-description: 유지보수나 리팩토링 작업 시 사용
-title: "[REFACTOR] 제목을 입력해주세요"
-labels: [REFACTOR]
+description: 기능 변경 없이 코드 품질 개선 (범위/목적/검증/리스크)
+title: "[REFACTOR] "
+labels: ["REFACTOR"]
 assignees:
   - jho951
 
@@ -9,29 +9,88 @@ body:
   - type: markdown
     attributes:
       value: |
-        ### 설명
-        ❗️유지보수 작업이나 리팩토링에 대한 간단한 설명을 작성해 주세요.
+        ✅ 작성 팁
+        - 리팩토링의 핵심은 **기능 변화 없음**입니다.
+        - 변경 범위를 명확히 적어야 리뷰/리스크 관리가 쉬워집니다.
 
-  - type: input
+  - type: textarea
+    id: target
     attributes:
-      label: 작업 설명
-      description: 어떤 작업을 해야 하나요?
-      placeholder: 수정할 부분이나 유지보수 작업에 대해 설명해주세요.
+      label: "📝 리팩토링 대상/범위"
+      description: "어느 모듈/패키지/클래스를 리팩토링하나요?"
+      placeholder: |
+        예)
+        - com.admin.service 내 UserService, AdminUserService 통합
+        - 공통 응답 포맷을 ApiResponse 클래스로 통일
     validations:
       required: true
 
-  - type: input
+  - type: textarea
+    id: purpose
     attributes:
-      label: 우선순위
-      description: 이 작업의 우선순위는 무엇인가요?
-      placeholder: 낮음, 중간, 높음
+      label: "🎯 리팩토링 목적"
+      description: "왜 리팩토링이 필요한지 적어주세요."
+      placeholder: |
+        예) 중복 코드 제거 / 테스트 가능성 향상 / 가독성 개선 / 향후 기능 추가를 위한 구조 정리
     validations:
       required: true
 
-  - type: input
+  - type: checkboxes
+    id: refactor_menu
     attributes:
-      label: 관련 이슈
-      description: '관련된 이슈 번호가 있나요? (예: #123)'
-      placeholder: '예: #123'
+      label: "🔧 리팩토링 내용 요약"
+      options:
+        - label: "메서드/클래스 분리"
+        - label: "공통 유틸/컴포넌트 추출"
+        - label: "네이밍/패키지 구조 정리"
+        - label: "의존성 정리 (순환 의존 제거 등)"
+
+  - type: textarea
+    id: plan
+    attributes:
+      label: "🧩 구체적인 변경 계획"
+      placeholder: |
+        예)
+        - UserService에서 인증/인가 로직 분리 → AuthService 생성
+        - 컨트롤러에서 공통 예외 처리 제거 → @ControllerAdvice로 이동
+    validations:
+      required: false
+
+  - type: textarea
+    id: equivalence
+    attributes:
+      label: "✅ 동작 동일성 검증 방법"
+      description: "기존 기능과 동작이 동일함을 어떻게 보장하나요?"
+      placeholder: |
+        - [ ] 기존 테스트 케이스 재사용/보완
+        - [ ] 주요 유스케이스 수동 테스트
+        - [ ] 로그/모니터링으로 동작 확인
+    validations:
+      required: true
+
+  - type: textarea
+    id: test_plan
+    attributes:
+      label: "🧪 테스트 계획 (선택)"
+      placeholder: |
+        예) User CRUD API 전부 호출해 정상 응답 확인 / 로그인-로그아웃 시나리오 전체 확인
+    validations:
+      required: false
+
+  - type: textarea
+    id: risk
+    attributes:
+      label: "⚠️ 리스크 / 영향 범위 / 롤백"
+      placeholder: |
+        - 영향받는 기능/모듈:
+        - 롤백 방법:
+    validations:
+      required: false
+
+  - type: input
+    id: references
+    attributes:
+      label: "📎 참고 자료"
+      placeholder: "예: 관련 문서/가이드 링크, 관련 이슈 #123"
     validations:
       required: false

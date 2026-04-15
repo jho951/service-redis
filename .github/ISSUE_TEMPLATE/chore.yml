@@ -1,7 +1,7 @@
 name: Chore
-description: 문서 작업, 설정 수정, 의존성 업데이트 등의 관리 작업
-title: "[CHORE] 제목을 입력해주세요"
-labels: [CHORE]
+description: 빌드/배포/도구/의존성/문서 등 설정 변경 (이유/영향/롤백 포함)
+title: "[CHORE] "
+labels: ["CHORE"]
 assignees:
   - jho951
 
@@ -9,26 +9,83 @@ body:
   - type: markdown
     attributes:
       value: |
-        ### 설명
-        ❗문서 작업이나 설정 수정, 의존성 업데이트 등 관리적인 작업에 대한 설명을 작성해 주세요.
+        ✅ 작성 팁
+        - CI/CD, 빌드 스크립트, 린트/포맷터 설정 변경 등은 **영향 범위**를 명확히 적어주세요.
 
-  - type: input
+  - type: textarea
+    id: overview
     attributes:
-      label: '작업 설명'
-      description: '어떤 작업을 해야 하나요?'
-      placeholder: '수정할 문서나 설정 파일, 의존성 등을 설명해주세요.'
+      label: "📝 작업 개요"
+      description: "어떤 설정을 변경/추가/삭제하려는지 한 줄로 설명해주세요."
+      placeholder: |
+        예)
+        - Gradle 빌드 스크립트에서 JDK 17으로 전환
+        - CI에서 테스트 병렬 실행 추가
+    validations:
       required: true
 
-  - type: input
+  - type: textarea
+    id: background
     attributes:
-      label: '우선순위'
-      description: '이 작업의 우선순위는 무엇인가요?'
-      placeholder: '낮음, 중간, 높음'
+      label: "🎯 작업 배경 / 이유"
+      placeholder: |
+        예)
+        - 기존 JDK 11 환경과 실제 서버(JDK 17) 불일치
+        - 빌드 시간 단축
+        - 코드 스타일 통일
+    validations:
       required: true
 
-  - type: input
+  - type: textarea
+    id: changes
     attributes:
-      label: '관련 이슈'
-      description: '관련된 이슈 번호가 있나요? (예: #123)'
-      placeholder: '예: #123'
+      label: "🔧 변경 내용 상세"
+      description: "변경 파일/경로와 주요 변경점을 적어주세요."
+      placeholder: |
+        - 변경 파일/경로: build.gradle, .github/workflows/ci.yml
+        - 주요 변경점:
+          - sourceCompatibility: 11 → 17
+          - Actions 캐시 설정 추가
+    validations:
+      required: true
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: "✅ 영향 범위 / 리스크"
+      description: "영향받을 수 있는 부분과 리스크를 적어주세요."
+      placeholder: |
+        - 영향: 로컬 개발 환경, CI 파이프라인, 특정 IDE 설정
+        - 리스크: Gradle 플러그인 버전 호환성, 특정 OS에서만 발생 가능성
+    validations:
+      required: false
+
+  - type: textarea
+    id: rollback
+    attributes:
+      label: "🔄 롤백 방법"
+      description: "문제가 발생했을 때 되돌리는 방법을 적어주세요."
+      placeholder: |
+        예)
+        - build.gradle 특정 커밋으로 revert
+        - 워크플로우 파일 이전 버전으로 복원
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: "✅ 체크리스트"
+      options:
+        - label: "로컬 빌드 성공 확인"
+        - label: "CI 빌드/테스트 통과 확인"
+        - label: "관련 문서(README, 위키 등) 업데이트"
+        - label: "팀에 설정 변경 공유 (슬랙/노션 등)"
+
+  - type: input
+    id: references
+    attributes:
+      label: "📎 참고 자료"
+      placeholder: "예: 공식 문서/레퍼런스 링크, 관련 이슈/PR #123"
+    validations:
       required: false

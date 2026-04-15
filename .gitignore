@@ -1,5 +1,20 @@
-### OS ###
+# System
 .DS_Store
+Thumbs.db
+ehthumbs.db
+*.swp
+
+# Java
+*.class
+*.log
+
+# Gradle
+.gradle/
+.gradle-local/
+build/
+**/build/
+*.kotlin_module
+*.lck
 
 ### IntelliJ IDEA ###
 .idea
@@ -18,10 +33,19 @@ out/
 ### VS Code ###
 .vscode/
 
-### Environment ###
-.env
-env/.env.*
-!env/.env.prod.example
+# Eclipse / editor leftovers
+*.tmp
+*.orig
+.project
+.settings/
+
+# Secrets
+.env*
+.envrc
+docker/.generated
+*.key
+*.pem
+*.p12
 
 ### Local Build ###
 build/
@@ -29,3 +53,12 @@ build/
 ### Docker Runtime ###
 docker/data/
 docker/logs/
+
+# Data
+data/
+
+# Logs / runtime
+*.pid
+*.seed
+*.out
+*.err

@@ -1,7 +1,7 @@
 name: Feature
-description: 새로운 기능이나 개선 사항 제안 시 사용
-title: "[FEATURE] 기능 제목을 입력해주세요"
-labels: [FEATURE]
+description: 새로운 기능/개선 제안 (배경 → 요구사항 → 범위 → 검증)
+title: "[FEATURE] "
+labels: ["FEATURE"]
 assignees:
   - jho951
 
@@ -9,32 +9,91 @@ body:
   - type: markdown
     attributes:
       value: |
-        ### 설명
-        ❗️ 작업한 기능을 작성해주세요.
+        ✅ 작성 팁
+        - 가능하면 **'왜 필요한가(배경/문제)'**를 먼저 적어주세요. 리뷰가 빨라집니다.
+        - 요구사항은 **검수 단위 체크리스트**로 쪼개주세요.
 
   - type: textarea
-    id: summary
+    id: overview
     attributes:
-      label: 기능 설명
-      description: 어떤 기능을 제안하시나요?
-      placeholder: 여기에 설명을 입력하세요
+      label: "📝 작업 개요"
+      description: "추가/개선하려는 기능을 한 문장으로 설명해주세요."
+      placeholder: |
+        예) 관리자가 사용자 계정을 username/email로 검색하고 상태(active/inactive)로 필터링할 수 있게 한다.
     validations:
       required: true
 
   - type: textarea
-    id: reason
+    id: background
     attributes:
-      label: 필요한 이유
-      description: 왜 이 기능이 필요한가요?
-      placeholder: 사용자의 요구나 문제점을 설명해주세요
+      label: "🎯 배경 / 문제 정의"
+      description: "이 기능이 필요한 이유, 해결하고 싶은 문제/불편/요구사항을 적어주세요."
+      placeholder: |
+        예)
+        - 운영팀이 특정 이메일 도메인 사용자를 찾는 데 시간이 오래 걸림
+        - 기존 화면에서는 가입자 추이를 한눈에 보기 어려움
     validations:
       required: true
+
+  - type: textarea
+    id: requirements
+    attributes:
+      label: "📌 요구 사항 (Acceptance Criteria)"
+      description: "구현 단위/검수 단위로 체크리스트를 작성해주세요."
+      placeholder: |
+        - [ ] username, email로 사용자 검색 가능
+        - [ ] 상태(active/inactive)로 필터링 가능
+        - [ ] 검색 조건은 URL 쿼리 파라미터로 표현
+    validations:
+      required: true
+
+  - type: textarea
+    id: details
+    attributes:
+      label: "📚 상세 설명 (선택)"
+      description: "화면 흐름/간단 와이어프레임/UX 아이디어, API 설계 초안(링크/내용) 등을 적어주세요."
+      placeholder: |
+        - 화면: ...
+        - API: GET /api/... (query: ...)
+    validations:
+      required: false
+
+  - type: textarea
+    id: scope_in
+    attributes:
+      label: "🚧 범위 - 포함(In Scope)"
+      placeholder: |
+        - (예) /api/admin/users 검색 API 추가
+        - (예) 어드민 사용자 리스트 화면 검색 UI 추가
+    validations:
+      required: false
+
+  - type: textarea
+    id: scope_out
+    attributes:
+      label: "🚧 범위 - 제외(Out of Scope)"
+      placeholder: |
+        - (예) 권한 체계 변경
+        - (예) 모바일 화면 최적화
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: verification
+    attributes:
+      label: "✅ 테스트 / 검증 항목"
+      description: "완료 시 체크하세요."
+      options:
+        - label: "단위 테스트 작성/수정"
+        - label: "로컬 환경에서 기능 동작 확인"
+        - label: "관련 문서(노션, README 등) 업데이트"
+        - label: "로그/모니터링 포인트 필요 시 추가"
 
   - type: input
-    id: reference
+    id: references
     attributes:
-      label: 참고 자료
-      description: 관련 문서나 링크가 있다면 적어주세요
-      placeholder: https://...
+      label: "📎 참고 자료"
+      description: "기획/디자인 문서 링크, 관련 이슈 번호 등"
+      placeholder: "예: #123, https://..."
     validations:
       required: false

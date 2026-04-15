@@ -20,6 +20,14 @@ Redis는 캐시와 임시 상태 저장소로만 사용한다.
 
 ## 빠른 시작
 
+IntelliJ 또는 로컬 바이너리 실행:
+
+```bash
+./scripts/run.local.sh
+```
+
+Docker dev 실행:
+
 ```bash
 ./scripts/run.docker.sh up
 ./scripts/run.docker.sh up-monitoring
@@ -28,10 +36,13 @@ Redis는 캐시와 임시 상태 저장소로만 사용한다.
 ./scripts/run.docker.sh down
 ```
 
-로컬 바이너리 실행:
+Docker 배포용 설정 실행:
 
 ```bash
-./scripts/run.local.sh
+./scripts/run.docker.sh up prod
+./scripts/run.docker.sh up-monitoring prod
+./scripts/run.docker.sh logs prod
+./scripts/run.docker.sh down prod
 ```
 
 ## 구조
@@ -40,13 +51,22 @@ Redis는 캐시와 임시 상태 저장소로만 사용한다.
 docker/
   Dockerfile
   docker-compose.yml
+  dev/
+    docker-compose.yml
+    redis.conf
+  prod/
+    docker-compose.yml
+    redis.conf
   docker-entrypoint.sh
+  redis.conf
+local/
   redis.conf
 scripts/
   run.docker.sh
   run.local.sh
-env.dev
-env.prod
+env.local
+env.docker.dev
+env.docker.prod
 env.example
 docs/
   Requirement.md
@@ -56,14 +76,50 @@ docs/
 
 ## 런타임
 
-- image: `central-redis:v1`
-- container: `central-redis`
+- local binary env: `env.local`
+- docker dev env: `env.docker.dev`
+- docker prod env: `env.docker.prod`
+- image: `${REDIS_IMAGE:-central-redis:dev}`
+- container: `${REDIS_CONTAINER_NAME:-central-redis-dev}`
 - service dns: `redis-server`
+- container alias: `central-redis`
 - redis port: `6379`
 - metrics port: `9121`
 - shared network: `${SHARED_SERVICE_NETWORK:-service-backbone-shared}` (external)
-- config: [`docker/redis.conf`](/Users/jhons/Downloads/BE/redis-server/docker/redis.conf)
-- compose: [`docker/docker-compose.yml`](/Users/jhons/Downloads/BE/redis-server/docker/docker-compose.yml)
+- local binary config: [`local/redis.conf`](local/redis.conf)
+- docker fallback config: [`docker/redis.conf`](docker/redis.conf)
+- dev redis config: [`docker/dev/redis.conf`](docker/dev/redis.conf)
+- prod redis config: [`docker/prod/redis.conf`](docker/prod/redis.conf)
+- common compose: [`docker/docker-compose.yml`](docker/docker-compose.yml)
+- dev compose: [`docker/dev/docker-compose.yml`](docker/dev/docker-compose.yml)
+- prod compose: [`docker/prod/docker-compose.yml`](docker/prod/docker-compose.yml)
+
+## 실행 환경 분리
+
+| 실행 방식 | 기본 env 파일 | 용도 |
+|---|---|---|
+| IntelliJ/로컬 redis-server | `env.local` | 로컬에 설치된 `redis-server`를 직접 실행 |
+| Docker dev | `env.docker.dev` + `docker/dev/docker-compose.yml` | 개발 PC의 Docker Compose 실행 |
+| Docker prod | `env.docker.prod` + `docker/prod/docker-compose.yml` | 배포 서버의 Docker Compose 실행 |
+
+`run.local.sh`는 기본으로 `env.local`을 읽는다.
+IntelliJ External Tool이나 Run Configuration에서 실행 파일을 `scripts/run.local.sh`로 지정하면 같은 설정으로 실행된다.
+
+`run.docker.sh`는 두 번째 인자로 Docker 환경을 고른다.
+공통 설정은 `docker-compose.yml`에 두고, dev/prod 차이는 각각 `docker/dev/docker-compose.yml`, `docker/prod/docker-compose.yml`에서 덮어쓴다.
+Redis 설정도 `docker/dev/redis.conf`, `docker/prod/redis.conf`로 분리한다.
+
+```bash
+./scripts/run.docker.sh up dev
+./scripts/run.docker.sh up prod
+```
+
+별도 파일을 쓰려면 기존처럼 `ENV_FILE`을 지정한다.
+
+```bash
+ENV_FILE=/path/to/env.file ./scripts/run.docker.sh up
+ENV_FILE=/path/to/env.file ./scripts/run.local.sh
+```
 
 ## 연결 원칙
 
@@ -85,7 +141,7 @@ permission:policy-cache:{roleId}
 
 | 항목 | 현재 Gateway 상태 | Redis Server에서 맞출 것 |
 |---|---|---|
-| 연결 호스트 | REDIS_HOST 기본값 redis-server | Redis 서비스 DNS를 redis-server로 제공하거나, gateway env로 동일 값 설정 |
+| 연결 호스트 | REDIS_HOST는 `redis-server` 또는 `central-redis` 중 실제 compose 노출명과 맞춰 설정 | Redis 서비스 DNS(`redis-server`)와 컨테이너 별칭(`central-redis`) 중 실제 접속 가능한 이름을 사용 |
 | 포트 | REDIS_PORT 기본 6379 | Redis가 내부 네트워크에서 6379 수신 |
 | 네트워크 | gateway가 external service-backbone-shared 사용 | Redis도 동일 external 네트워크에 조인 |
 | 타임아웃 | REDIS_TIMEOUT_MS 기본 1000 | 네트워크 지연 고려해 1000~3000ms 범위로 운영값 조정 |
@@ -106,9 +162,9 @@ permission:policy-cache:{roleId}
 
 ## 문서
 
-- 현재 구조와 정책: [`docs/Requirement.md`](/Users/jhons/Downloads/BE/redis-server/docs/Requirement.md)
-- 운영 절차: [`docs/Redis-Runbook.md`](/Users/jhons/Downloads/BE/redis-server/docs/Redis-Runbook.md)
-- 향후 확장: [`docs/Extension.md`](/Users/jhons/Downloads/BE/redis-server/docs/Extension.md)
+- 현재 구조와 정책: [`docs/Requirement.md`](docs/Requirement.md)
+- 운영 절차: [`docs/Redis-Runbook.md`](docs/Redis-Runbook.md)
+- 향후 확장: [`docs/Extension.md`](docs/Extension.md)
 - 축약 안내:
-  [`docs/Design.md`](/Users/jhons/Downloads/BE/redis-server/docs/Design.md),
-  [`docs/Redis-MSA-Integration.md`](/Users/jhons/Downloads/BE/redis-server/docs/Redis-MSA-Integration.md)
+  [`docs/Design.md`](docs/Design.md),
+  [`docs/Redis-MSA-Integration.md`](docs/Redis-MSA-Integration.md)

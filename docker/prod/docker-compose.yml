@@ -1,0 +1,11 @@
+services:
+  redis-server:
+    image: ${REDIS_IMAGE:-central-redis:prod}
+    container_name: ${REDIS_CONTAINER_NAME:-central-redis}
+    ports:
+      - "${REDIS_BIND_HOST:-0.0.0.0}:${REDIS_BIND_PORT:-6379}:6379"
+
+  redis-exporter:
+    container_name: ${REDIS_EXPORTER_CONTAINER_NAME:-central-redis-exporter}
+    ports:
+      - "${REDIS_EXPORTER_BIND_HOST:-0.0.0.0}:${REDIS_EXPORTER_PORT:-9121}:9121"
