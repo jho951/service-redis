@@ -1,0 +1,50 @@
+contract:
+  repo: https://github.com/jho951/service-contract
+  ref: main
+  commit: 12dc214ed7e0c9c2290add6972cd35be13634743
+
+service:
+  name: redis-service
+  branch: main
+  role: infra
+  consumes:
+    - shared/env.md
+    - shared/security.md
+    - shared/terraform.md
+    - shared/ci-cd.md
+    - repositories/redis-service/**
+
+validation:
+  contract_lock: true
+  openapi: false
+  schema: false
+  routing: false
+  headers: false
+  errors: false
+  security: true
+
+ci:
+  profile: infra
+  runtime: docker
+  setup: compose
+  test_command: docker compose --env-file env.docker.dev -f docker/dev/compose.yml config >/tmp/redis-dev.yml
+  build_command: docker build -f docker/Dockerfile -t redis-service:ci .
+  docker: true
+  contract_check: true
+
+cd:
+  profile: ec2-compose
+  target: ec2
+  strategy: docker-compose
+  environments:
+    - dev
+    - prod
+  image_registry: ghcr.io
+  deploy_on: protected_branch
+  health_check: true
+  smoke_test: true
+
+notes:
+  owner: redis-service
+  automation_level: guardrail
+  legacy_sync_doc: false
