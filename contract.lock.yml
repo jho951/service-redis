@@ -39,7 +39,7 @@ cd:
   environments:
     - dev
     - prod
-  image_registry: ghcr.io
+  image_registry: ecr.amazonaws.com
   deploy_on: protected_branch
   health_check: true
   smoke_test: true

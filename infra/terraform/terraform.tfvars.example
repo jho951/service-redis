@@ -2,21 +2,60 @@ aws_region   = "ap-northeast-2"
 project_name = "msa"
 environment  = "prod"
 
-service_name = "redis-server"
+service_name         = "redis-service"
+service_runtime_name = "redis-server"
+service_role         = "cache-service"
 
-vpc_cidr             = "10.25.0.0/16"
-private_subnet_cidrs = ["10.25.11.0/24", "10.25.12.0/24"]
+# For a real MSA EC2 layout, prefer create_vpc = false and reuse a shared VPC/subnet.
+create_vpc          = true
+vpc_cidr            = "10.25.0.0/16"
+public_subnet_cidrs = ["10.25.1.0/24", "10.25.2.0/24"]
 
-# Allow only service VPCs, peered VPCs, or private network ranges that should use central Redis.
-redis_client_cidrs = ["10.20.0.0/12"]
+# create_vpc         = false
+# existing_vpc_id    = "vpc-0123456789abcdef0"
+# existing_subnet_id = "subnet-0123456789abcdef0"
+# existing_vpc_cidr  = "10.10.0.0/16"
 
-redis_engine_version       = "7.1"
-redis_node_type            = "cache.t4g.micro"
-redis_port                 = 6379
-redis_num_cache_clusters   = 2
-redis_parameter_group_name = "default.redis7"
-redis_auth_token           = "replace-with-a-long-random-redis-auth-token"
+app_port          = 6379
+app_ingress_cidrs = ["10.10.0.0/16"]
+extra_ingress_rules = [
+  {
+    description = "Redis exporter"
+    from_port   = 9121
+    to_port     = 9121
+    cidr_blocks = ["10.10.0.0/16"]
+  }
+]
+ssh_ingress_cidrs = ["203.0.113.10/32"]
 
-snapshot_retention_days = 7
-snapshot_window         = "18:00-19:00"
-maintenance_window      = "sun:19:00-sun:20:00"
+associate_public_ip  = true
+ec2_instance_type    = "t3.small"
+ec2_root_volume_size = 40
+
+repository_url  = "https://github.com/jho951/redis-server.git"
+repository_ref  = "main"
+deploy_env_file = "env.docker.prod"
+deploy_command  = "./scripts/run.docker.sh up-monitoring prod"
+
+# Optional when using a shared private Route53 hosted zone.
+# private_dns_zone_id = "Z0123456789ABCDE"
+# private_dns_name    = "redis.internal"
+
+app_env = {
+  COMPOSE_PROJECT_NAME        = "redis-server-prod"
+  REDIS_BIND_HOST             = "0.0.0.0"
+  REDIS_BIND_PORT             = "6379"
+  REDIS_CONFIG_FILE           = "/usr/local/etc/redis/prod/redis.conf"
+  REDIS_MAXMEMORY             = "1gb"
+  REDIS_MAXMEMORY_POLICY      = "allkeys-lru"
+  REDIS_IMAGE                 = "central-redis:prod"
+  REDIS_CONTAINER_NAME        = "central-redis"
+  SHARED_SERVICE_NETWORK      = "service-backbone-shared"
+  REDIS_EXPORTER_BIND_HOST    = "0.0.0.0"
+  REDIS_EXPORTER_PORT         = "9121"
+  REDIS_EXPORTER_CONTAINER_NAME = "central-redis-exporter"
+}
+
+app_secret_env = {
+  REDIS_PASSWORD = "replace-with-redis-password"
+}

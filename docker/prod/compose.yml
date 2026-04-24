@@ -2,10 +2,8 @@ name: redis-server-prod
 
 services:
   redis-server:
-    build:
-      context: ../..
-      dockerfile: docker/Dockerfile
-    image: ${REDIS_IMAGE:-central-redis:prod}
+    image: ${REDIS_IMAGE:?REDIS_IMAGE is required}
+    pull_policy: always
     container_name: ${REDIS_CONTAINER_NAME:-central-redis}
     restart: unless-stopped
     environment:
@@ -32,7 +30,7 @@ services:
       start_period: 10s
 
   redis-exporter:
-    image: oliver006/redis_exporter:v1.67.0
+    image: ${REDIS_EXPORTER_IMAGE:-oliver006/redis_exporter:v1.67.0}
     container_name: ${REDIS_EXPORTER_CONTAINER_NAME:-central-redis-exporter}
     restart: unless-stopped
     profiles:

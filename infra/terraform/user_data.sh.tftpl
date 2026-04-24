@@ -1,0 +1,97 @@
+#!/bin/bash
+set -Eeuo pipefail
+
+exec > >(tee /var/log/${stack_name}-bootstrap.log | logger -t ${stack_name}-bootstrap -s 2>/dev/console) 2>&1
+
+export AWS_DEFAULT_REGION=${aws_region}
+
+dnf update -y
+dnf install -y docker git jq curl
+
+if ! command -v aws >/dev/null 2>&1; then
+  dnf install -y awscli || dnf install -y awscli2
+fi
+
+systemctl enable --now docker
+systemctl enable --now amazon-ssm-agent || true
+
+if ! docker compose version >/dev/null 2>&1; then
+  mkdir -p /usr/local/lib/docker/cli-plugins
+  curl -fsSL "https://github.com/docker/compose/releases/download/v${docker_compose_version}/docker-compose-linux-x86_64" \
+    -o /usr/local/lib/docker/cli-plugins/docker-compose
+  chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+fi
+
+APP_ROOT="/opt/${stack_name}"
+REPO_DIR="$APP_ROOT/repo"
+PLAIN_ENV_JSON_FILE="$APP_ROOT/plain-env.json"
+MERGED_ENV_JSON_FILE="$APP_ROOT/merged-env.json"
+REDEPLOY_SCRIPT="$APP_ROOT/redeploy.sh"
+
+mkdir -p "$APP_ROOT"
+
+cat > "$PLAIN_ENV_JSON_FILE" <<'JSON'
+${plain_env_json}
+JSON
+
+cat > "$REDEPLOY_SCRIPT" <<SCRIPT
+#!/bin/bash
+set -Eeuo pipefail
+
+export AWS_DEFAULT_REGION=${aws_region}
+
+APP_ROOT="/opt/${stack_name}"
+REPO_DIR="\$APP_ROOT/repo"
+PLAIN_ENV_JSON_FILE="\$APP_ROOT/plain-env.json"
+MERGED_ENV_JSON_FILE="\$APP_ROOT/merged-env.json"
+DEPLOY_ENV_FILE=${deploy_env_file_json}
+DEPLOY_COMMAND=${deploy_command_json}
+REPOSITORY_URL=${repository_url_json}
+REPOSITORY_REF=${repository_ref_json}
+REGISTRY_SERVER=${registry_server_json}
+REGISTRY_USERNAME=${registry_username_json}
+BOOTSTRAP_SECRET_ARN=${bootstrap_secret_arn}
+
+BOOTSTRAP_SECRET_JSON="\$(aws secretsmanager get-secret-value --secret-id "\$BOOTSTRAP_SECRET_ARN" --query SecretString --output text)"
+APP_SECRET_JSON="\$(printf '%s' "\$BOOTSTRAP_SECRET_JSON" | jq '.app_secret_env // {}')"
+REPOSITORY_CLONE_TOKEN="\$(printf '%s' "\$BOOTSTRAP_SECRET_JSON" | jq -r '.repository_clone_token // ""')"
+REGISTRY_PASSWORD="\$(printf '%s' "\$BOOTSTRAP_SECRET_JSON" | jq -r '.registry_password // ""')"
+
+jq -s '.[0] * .[1]' "\$PLAIN_ENV_JSON_FILE" <(printf '%s' "\$APP_SECRET_JSON") > "\$MERGED_ENV_JSON_FILE"
+
+CLONE_URL="\$REPOSITORY_URL"
+if [[ -n "\$REPOSITORY_CLONE_TOKEN" && "\$REPOSITORY_URL" == https://* ]]; then
+  CLONE_URL="$${REPOSITORY_URL/https:\/\//https:\/\/x-access-token:\$REPOSITORY_CLONE_TOKEN@}"
+fi
+
+if [[ ! -d "\$REPO_DIR/.git" ]]; then
+  git clone "\$CLONE_URL" "\$REPO_DIR"
+fi
+
+git -C "\$REPO_DIR" remote set-url origin "\$CLONE_URL" || true
+git -C "\$REPO_DIR" fetch --tags origin
+git -C "\$REPO_DIR" checkout "\$REPOSITORY_REF"
+
+if git -C "\$REPO_DIR" show-ref --verify --quiet "refs/remotes/origin/\$REPOSITORY_REF"; then
+  git -C "\$REPO_DIR" pull --ff-only origin "\$REPOSITORY_REF"
+fi
+
+mkdir -p "\$(dirname "\$REPO_DIR/\$DEPLOY_ENV_FILE")"
+jq -r 'to_entries | sort_by(.key)[] | "\(.key)=\(.value)"' "\$MERGED_ENV_JSON_FILE" > "\$REPO_DIR/\$DEPLOY_ENV_FILE"
+
+if [[ -n "\$REGISTRY_SERVER" && -n "\$REGISTRY_USERNAME" && -n "\$REGISTRY_PASSWORD" ]]; then
+  printf '%s' "\$REGISTRY_PASSWORD" | docker login "\$REGISTRY_SERVER" --username "\$REGISTRY_USERNAME" --password-stdin
+fi
+
+eval "\$(jq -r 'to_entries[] | "export \(.key)=\(.value|@sh)"' "\$MERGED_ENV_JSON_FILE")"
+
+if [[ -z "$${GITHUB_TOKEN:-}" && -n "$${GH_TOKEN:-}" ]]; then
+  export GITHUB_TOKEN="\$GH_TOKEN"
+fi
+
+cd "\$REPO_DIR"
+bash -lc "\$DEPLOY_COMMAND"
+SCRIPT
+
+chmod +x "$REDEPLOY_SCRIPT"
+"$REDEPLOY_SCRIPT"

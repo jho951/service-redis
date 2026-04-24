@@ -37,10 +37,32 @@ compose() {
 }
 
 case "$COMMAND" in
-  up) compose up -d --build ;;
-  up-monitoring) compose --profile monitoring up -d --build ;;
+  up)
+    if [ "$TARGET_ENV" = "prod" ]; then
+      compose pull
+      compose up -d
+    else
+      compose up -d --build
+    fi
+    ;;
+  up-monitoring)
+    if [ "$TARGET_ENV" = "prod" ]; then
+      compose --profile monitoring pull
+      compose --profile monitoring up -d
+    else
+      compose --profile monitoring up -d --build
+    fi
+    ;;
   down) compose down --remove-orphans ;;
-  restart) compose down --remove-orphans && compose up -d --build ;;
+  restart)
+    compose down --remove-orphans
+    if [ "$TARGET_ENV" = "prod" ]; then
+      compose pull
+      compose up -d
+    else
+      compose up -d --build
+    fi
+    ;;
   logs) compose logs -f redis-server ;;
   logs-monitoring) compose logs -f redis-exporter ;;
   ps) compose ps ;;

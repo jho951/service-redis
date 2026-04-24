@@ -21,7 +21,8 @@ on:
 
 permissions:
   contents: read
-  packages: write
+  packages: read
+  id-token: write
 
 concurrency:
   group: cd-${{ github.workflow }}-${{ github.ref }}
@@ -31,20 +32,20 @@ env:
   CONTRACT_REPO: https://github.com/jho951/service-contract
   SERVICE_NAME: redis-service
   CD_PROFILE: ec2-compose
-  IMAGE_URI: ghcr.io/${{ github.repository }}
+  AWS_REGION: ${{ vars.AWS_REGION || 'ap-northeast-2' }}
   IMAGE_BUILD_COMMAND: |
     docker build \
       -f docker/Dockerfile \
       -t "${IMAGE_URI}:${GITHUB_SHA}" \
       .
     docker push "${IMAGE_URI}:${GITHUB_SHA}"
-    if [ "${GITHUB_REF_NAME}" = "main" ]; then
+    if [ "${PUBLISH_LATEST}" = "true" ]; then
       docker tag "${IMAGE_URI}:${GITHUB_SHA}" "${IMAGE_URI}:latest"
       docker push "${IMAGE_URI}:latest"
     fi
   COMPOSE_CONFIG_COMMAND: |
     docker compose --env-file env.docker.dev -f docker/dev/compose.yml config >/tmp/redis-dev.yml
-    REDIS_PASSWORD=ci REDIS_BIND_HOST=127.0.0.1 REDIS_EXPORTER_BIND_HOST=127.0.0.1 docker compose --env-file env.docker.prod -f docker/prod/compose.yml config >/tmp/redis-prod.yml
+    REDIS_IMAGE=123456789012.dkr.ecr.ap-northeast-2.amazonaws.com/prod-redis-service:test REDIS_PASSWORD=ci REDIS_BIND_HOST=127.0.0.1 REDIS_EXPORTER_BIND_HOST=127.0.0.1 docker compose --env-file env.docker.prod -f docker/prod/compose.yml config >/tmp/redis-prod.yml
   HEALTH_URL: redis-cli PING
   READY_URL: redis-cli PING
   GITHUB_ACTOR: ${{ github.actor }}
@@ -96,28 +97,44 @@ jobs:
     name: Image
     runs-on: ubuntu-latest
     needs: deploy-gate
+    outputs:
+      image_uri: ${{ steps.resolve.outputs.image_uri }}
+      latest_image_uri: ${{ steps.resolve.outputs.latest_image_uri }}
+      repository: ${{ steps.resolve.outputs.repository }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Login to GHCR
-        if: ${{ env.IMAGE_BUILD_COMMAND != 'skip' }}
-        uses: docker/login-action@v3
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
 
-      - name: Build and push image
-        if: ${{ env.IMAGE_BUILD_COMMAND != 'skip' }}
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Resolve image target
+        id: resolve
         shell: bash
         run: |
           set -euo pipefail
-          ${{ env.IMAGE_BUILD_COMMAND }}
+          repo="${ECR_REPOSITORY_NAME:-${{ needs.deploy-gate.outputs.deploy_environment }}-${SERVICE_NAME}}"
+          image_uri="${{ steps.login-ecr.outputs.registry }}/${repo}"
+          latest_image_uri="${image_uri}:latest"
+          echo "repository=$repo" >> "$GITHUB_OUTPUT"
+          echo "image_uri=$image_uri" >> "$GITHUB_OUTPUT"
+          echo "latest_image_uri=$latest_image_uri" >> "$GITHUB_OUTPUT"
 
-      - name: Skip image publish
-        if: ${{ env.IMAGE_BUILD_COMMAND == 'skip' }}
-        run: echo "No Docker image is produced for ${{ env.SERVICE_NAME }}."
+      - name: Build and push image
+        shell: bash
+        env:
+          IMAGE_URI: ${{ steps.resolve.outputs.image_uri }}
+          PUBLISH_LATEST: ${{ github.ref_name == 'main' || github.ref_name == 'master' }}
+        run: |
+          set -euo pipefail
+          ${{ env.IMAGE_BUILD_COMMAND }}
 
   deploy:
     name: Deploy
@@ -136,12 +153,14 @@ jobs:
 
       - name: Deploy
         shell: bash
+        env:
+          REDIS_IMAGE: ${{ needs.image.outputs.image_uri }}:${{ github.sha }}
         run: |
           set -euo pipefail
           echo "Service: ${SERVICE_NAME}"
           echo "Profile: ${CD_PROFILE}"
           echo "Environment: ${{ needs.deploy-gate.outputs.deploy_environment }}"
-          echo "Image: ${IMAGE_URI}:${{ github.sha }}"
+          echo "Image: ${REDIS_IMAGE}"
           if [ -n "${DEPLOY_COMMAND}" ]; then
             eval "${DEPLOY_COMMAND}"
           else
