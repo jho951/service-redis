@@ -28,11 +28,9 @@ env:
   CI_PROFILE: infra
   CI_RUNTIME: docker
   JAVA_VERSION: "17"
+  COMPOSE_VALIDATE_SCRIPT: ./scripts/validate-compose.sh
   TEST_COMMAND: docker compose --env-file env.docker.dev -f docker/dev/compose.yml config >/tmp/redis-dev.yml
   BUILD_COMMAND: docker build -f docker/Dockerfile -t redis-service:ci .
-  COMPOSE_CONFIG_COMMAND: |
-    docker compose --env-file env.docker.dev -f docker/dev/compose.yml config >/tmp/redis-dev.yml
-    REDIS_PASSWORD=ci REDIS_BIND_HOST=127.0.0.1 REDIS_EXPORTER_BIND_HOST=127.0.0.1 docker compose --env-file env.docker.prod -f docker/prod/compose.yml config >/tmp/redis-prod.yml
   IMAGE_URI: ghcr.io/${{ github.repository }}
   CI_IMAGE_BUILD_COMMAND: |
     docker build \
@@ -70,9 +68,7 @@ jobs:
       - name: Fetch contract source
         shell: bash
         run: |
-          set -euo pipefail
-          CONTRACT_REF="$(awk '/^[[:space:]]*ref:/ { print $2; exit }' contract.lock.yml)"
-          git clone --depth 1 --branch "$CONTRACT_REF" "$CONTRACT_REPO" .contract
+          bash ./scripts/fetch-contract.sh
 
       - name: Verify consumed contract paths
         shell: bash
@@ -120,6 +116,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Fetch contract source
+        shell: bash
+        run: |
+          bash ./scripts/fetch-contract.sh
+
       - name: Setup Java
         if: ${{ env.CI_RUNTIME == 'java' }}
         uses: actions/setup-java@v4
@@ -132,14 +133,19 @@ jobs:
         if: ${{ env.CI_RUNTIME == 'java' }}
         run: chmod +x ./gradlew
 
+      - name: Ensure compose validate wrapper is executable
+        run: chmod +x "${COMPOSE_VALIDATE_SCRIPT}"
+
       - name: Run tests
         if: ${{ env.TEST_COMMAND != 'skip' }}
         shell: bash
         run: ${{ env.TEST_COMMAND }}
 
-      - name: Validate Compose config
-        shell: bash
-        run: ${{ env.COMPOSE_CONFIG_COMMAND }}
+      - name: Validate dev compose
+        run: ${{ env.COMPOSE_VALIDATE_SCRIPT }} dev
+
+      - name: Validate prod compose
+        run: ${{ env.COMPOSE_VALIDATE_SCRIPT }} prod
 
   build:
     name: Build

@@ -32,10 +32,11 @@ env:
   CONTRACT_REPO: https://github.com/jho951/service-contract
   SERVICE_NAME: redis-service
   CD_PROFILE: ec2-compose
+  COMPOSE_VALIDATE_SCRIPT: ./scripts/validate-compose.sh
+  DEPLOY_WRAPPER_SCRIPT: ./scripts/deploy-stack-service.sh
   AWS_REGION: ${{ vars.AWS_REGION || 'ap-northeast-2' }}
   HEALTH_URL: ${{ vars.HEALTH_URL || '' }}
   READY_URL: ${{ vars.READY_URL || '' }}
-  DEPLOY_COMMAND: ${{ secrets.DEPLOY_COMMAND }}
   HAS_EC2_DEPLOY_TARGET: ${{ secrets.DEPLOY_HOST != '' && secrets.DEPLOY_SSH_KEY != '' }}
   DEPLOY_HOST: ${{ secrets.DEPLOY_HOST || '' }}
   DEPLOY_USER: ${{ secrets.DEPLOY_USER || 'ec2-user' }}
@@ -51,9 +52,6 @@ env:
       docker tag "${IMAGE_URI}:${GITHUB_SHA}" "${IMAGE_URI}:latest"
       docker push "${IMAGE_URI}:latest"
     fi
-  COMPOSE_CONFIG_COMMAND: |
-    docker compose --env-file env.docker.dev -f docker/dev/compose.yml config >/tmp/redis-dev.yml
-    REDIS_IMAGE=123456789012.dkr.ecr.ap-northeast-2.amazonaws.com/prod-redis-service:test REDIS_PASSWORD=ci REDIS_BIND_HOST=127.0.0.1 REDIS_EXPORTER_BIND_HOST=127.0.0.1 docker compose --env-file env.docker.prod -f docker/prod/compose.yml config >/tmp/redis-prod.yml
   GITHUB_ACTOR: ${{ github.actor }}
   GITHUB_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN || secrets.GH_TOKEN || secrets.PACKAGES_TOKEN || secrets.GITHUB_TOKEN || github.token }}
   GH_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN || secrets.GH_TOKEN || secrets.PACKAGES_TOKEN || secrets.GITHUB_TOKEN || github.token }}
@@ -166,9 +164,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Validate compose config
+      - name: Fetch contract source
         shell: bash
-        run: ${{ env.COMPOSE_CONFIG_COMMAND }}
+        run: |
+          bash ./scripts/fetch-contract.sh
+
+      - name: Ensure wrappers are executable
+        run: chmod +x "${COMPOSE_VALIDATE_SCRIPT}" "${DEPLOY_WRAPPER_SCRIPT}"
+
+      - name: Validate dev compose
+        run: ${{ env.COMPOSE_VALIDATE_SCRIPT }} dev
+
+      - name: Validate prod compose
+        run: ${{ env.COMPOSE_VALIDATE_SCRIPT }} prod
 
       - name: Setup SSH agent
         if: ${{ env.HAS_EC2_DEPLOY_TARGET == 'true' }}
@@ -185,38 +193,16 @@ jobs:
           DEPLOY_HOST_CLEAN="$(printf '%s' "${DEPLOY_HOST}" | tr -d '[:space:]')"
           ssh-keyscan -p "${DEPLOY_PORT}" -H "${DEPLOY_HOST_CLEAN}" >> ~/.ssh/known_hosts
 
-      - name: Deploy to EC2
+      - name: Deploy via /opt/deploy wrapper
         if: ${{ env.HAS_EC2_DEPLOY_TARGET == 'true' }}
-        shell: bash
-        env:
-          IMAGE_URI: ${{ needs.image.outputs.image_uri }}:${{ github.sha }}
-          REGISTRY: ${{ needs.image.outputs.registry }}
-        run: |
-          set -euo pipefail
-          DEPLOY_HOST_CLEAN="$(printf '%s' "${DEPLOY_HOST}" | tr -d '[:space:]')"
-          ssh -p "${DEPLOY_PORT}" "${DEPLOY_USER}@${DEPLOY_HOST_CLEAN}" \
-            "AWS_REGION='${AWS_REGION}' REGISTRY='${REGISTRY}' IMAGE_URI='${IMAGE_URI}' DEPLOY_BUNDLE_DIR='${DEPLOY_BUNDLE_DIR}' bash -se" <<'EOF'
-          set -euo pipefail
-          aws ecr get-login-password --region "${AWS_REGION}" | docker login --username AWS --password-stdin "${REGISTRY}"
-          cd "${DEPLOY_BUNDLE_DIR}"
-          test -f .env.backend
-          sed -i "s|^REDIS_IMAGE=.*$|REDIS_IMAGE=${IMAGE_URI}|" .env.backend
-          ./scripts/deploy-stack.sh up
-          EOF
-
-      - name: Fallback deploy command
-        if: ${{ env.HAS_EC2_DEPLOY_TARGET != 'true' && env.DEPLOY_COMMAND != '' }}
-        shell: bash
         env:
           REDIS_IMAGE: ${{ needs.image.outputs.image_uri }}:${{ github.sha }}
-        run: |
-          set -euo pipefail
-          eval "${DEPLOY_COMMAND}"
+        run: ${{ env.DEPLOY_WRAPPER_SCRIPT }} "${{ needs.deploy-gate.outputs.deploy_environment }}"
 
       - name: Skip deploy
-        if: ${{ env.HAS_EC2_DEPLOY_TARGET != 'true' && env.DEPLOY_COMMAND == '' }}
+        if: ${{ env.HAS_EC2_DEPLOY_TARGET != 'true' }}
         shell: bash
-        run: echo "No EC2 deploy target or DEPLOY_COMMAND configured; image publish and compose validation completed."
+        run: echo "No EC2 deploy target configured; image publish and compose validation completed."
 
   health-check:
     name: Health Check
@@ -227,7 +213,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if [ "${HAS_EC2_DEPLOY_TARGET}" != "true" ] && [ -z "${DEPLOY_COMMAND}" ]; then
+          if [ "${HAS_EC2_DEPLOY_TARGET}" != "true" ]; then
             echo "Skipping remote health check."
             exit 0
           fi
@@ -246,7 +232,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if [ "${HAS_EC2_DEPLOY_TARGET}" != "true" ] && [ -z "${DEPLOY_COMMAND}" ]; then
+          if [ "${HAS_EC2_DEPLOY_TARGET}" != "true" ]; then
             echo "Skipping remote smoke test."
             exit 0
           fi
