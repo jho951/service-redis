@@ -33,6 +33,14 @@ env:
   SERVICE_NAME: redis-service
   CD_PROFILE: ec2-compose
   AWS_REGION: ${{ vars.AWS_REGION || 'ap-northeast-2' }}
+  HEALTH_URL: ${{ vars.HEALTH_URL || '' }}
+  READY_URL: ${{ vars.READY_URL || '' }}
+  DEPLOY_COMMAND: ${{ secrets.DEPLOY_COMMAND }}
+  HAS_EC2_DEPLOY_TARGET: ${{ secrets.DEPLOY_HOST != '' && secrets.DEPLOY_SSH_KEY != '' }}
+  DEPLOY_HOST: ${{ secrets.DEPLOY_HOST || '' }}
+  DEPLOY_USER: ${{ secrets.DEPLOY_USER || 'ec2-user' }}
+  DEPLOY_PORT: ${{ secrets.DEPLOY_PORT || '22' }}
+  DEPLOY_BUNDLE_DIR: ${{ vars.DEPLOY_BUNDLE_DIR || '/opt/deploy' }}
   IMAGE_BUILD_COMMAND: |
     docker build \
       -f docker/Dockerfile \
@@ -46,12 +54,9 @@ env:
   COMPOSE_CONFIG_COMMAND: |
     docker compose --env-file env.docker.dev -f docker/dev/compose.yml config >/tmp/redis-dev.yml
     REDIS_IMAGE=123456789012.dkr.ecr.ap-northeast-2.amazonaws.com/prod-redis-service:test REDIS_PASSWORD=ci REDIS_BIND_HOST=127.0.0.1 REDIS_EXPORTER_BIND_HOST=127.0.0.1 docker compose --env-file env.docker.prod -f docker/prod/compose.yml config >/tmp/redis-prod.yml
-  HEALTH_URL: redis-cli PING
-  READY_URL: redis-cli PING
   GITHUB_ACTOR: ${{ github.actor }}
   GITHUB_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN || secrets.GH_TOKEN || secrets.PACKAGES_TOKEN || secrets.GITHUB_TOKEN || github.token }}
   GH_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN || secrets.GH_TOKEN || secrets.PACKAGES_TOKEN || secrets.GITHUB_TOKEN || github.token }}
-  DEPLOY_COMMAND: ${{ secrets.DEPLOY_COMMAND }}
 
 jobs:
   deploy-gate:
@@ -101,6 +106,7 @@ jobs:
       image_uri: ${{ steps.resolve.outputs.image_uri }}
       latest_image_uri: ${{ steps.resolve.outputs.latest_image_uri }}
       repository: ${{ steps.resolve.outputs.repository }}
+      registry: ${{ steps.resolve.outputs.registry }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -121,11 +127,22 @@ jobs:
         run: |
           set -euo pipefail
           repo="${ECR_REPOSITORY_NAME:-${{ needs.deploy-gate.outputs.deploy_environment }}-${SERVICE_NAME}}"
-          image_uri="${{ steps.login-ecr.outputs.registry }}/${repo}"
+          registry="${{ steps.login-ecr.outputs.registry }}"
+          image_uri="${registry}/${repo}"
           latest_image_uri="${image_uri}:latest"
           echo "repository=$repo" >> "$GITHUB_OUTPUT"
+          echo "registry=$registry" >> "$GITHUB_OUTPUT"
           echo "image_uri=$image_uri" >> "$GITHUB_OUTPUT"
           echo "latest_image_uri=$latest_image_uri" >> "$GITHUB_OUTPUT"
+
+      - name: Ensure ECR repository
+        shell: bash
+        env:
+          REPOSITORY_NAME: ${{ steps.resolve.outputs.repository }}
+        run: |
+          set -euo pipefail
+          aws ecr describe-repositories --region "${AWS_REGION}" --repository-names "${REPOSITORY_NAME}" >/dev/null 2>&1 || \
+            aws ecr create-repository --region "${AWS_REGION}" --repository-name "${REPOSITORY_NAME}" >/dev/null
 
       - name: Build and push image
         shell: bash
@@ -147,25 +164,55 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Validate Compose config
+      - name: Validate compose config
         shell: bash
         run: ${{ env.COMPOSE_CONFIG_COMMAND }}
 
-      - name: Deploy
+      - name: Setup SSH agent
+        if: ${{ env.HAS_EC2_DEPLOY_TARGET == 'true' }}
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+
+      - name: Add deploy host to known_hosts
+        if: ${{ env.HAS_EC2_DEPLOY_TARGET == 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          ssh-keyscan -p "${DEPLOY_PORT}" -H "${DEPLOY_HOST}" >> ~/.ssh/known_hosts
+
+      - name: Deploy to EC2
+        if: ${{ env.HAS_EC2_DEPLOY_TARGET == 'true' }}
+        shell: bash
+        env:
+          IMAGE_URI: ${{ needs.image.outputs.image_uri }}:${{ github.sha }}
+          REGISTRY: ${{ needs.image.outputs.registry }}
+        run: |
+          set -euo pipefail
+          ssh -p "${DEPLOY_PORT}" "${DEPLOY_USER}@${DEPLOY_HOST}" \
+            "AWS_REGION='${AWS_REGION}' REGISTRY='${REGISTRY}' IMAGE_URI='${IMAGE_URI}' DEPLOY_BUNDLE_DIR='${DEPLOY_BUNDLE_DIR}' bash -se" <<'EOF'
+          set -euo pipefail
+          aws ecr get-login-password --region "${AWS_REGION}" | docker login --username AWS --password-stdin "${REGISTRY}"
+          cd "${DEPLOY_BUNDLE_DIR}"
+          test -f .env.backend
+          sed -i "s|^REDIS_IMAGE=.*$|REDIS_IMAGE=${IMAGE_URI}|" .env.backend
+          ./scripts/deploy-stack.sh up
+          EOF
+
+      - name: Fallback deploy command
+        if: ${{ env.HAS_EC2_DEPLOY_TARGET != 'true' && env.DEPLOY_COMMAND != '' }}
         shell: bash
         env:
           REDIS_IMAGE: ${{ needs.image.outputs.image_uri }}:${{ github.sha }}
         run: |
           set -euo pipefail
-          echo "Service: ${SERVICE_NAME}"
-          echo "Profile: ${CD_PROFILE}"
-          echo "Environment: ${{ needs.deploy-gate.outputs.deploy_environment }}"
-          echo "Image: ${REDIS_IMAGE}"
-          if [ -n "${DEPLOY_COMMAND}" ]; then
-            eval "${DEPLOY_COMMAND}"
-          else
-            echo "DEPLOY_COMMAND secret is not configured; image publish and compose validation completed."
-          fi
+          eval "${DEPLOY_COMMAND}"
+
+      - name: Skip deploy
+        if: ${{ env.HAS_EC2_DEPLOY_TARGET != 'true' && env.DEPLOY_COMMAND == '' }}
+        shell: bash
+        run: echo "No EC2 deploy target or DEPLOY_COMMAND configured; image publish and compose validation completed."
 
   health-check:
     name: Health Check
@@ -176,14 +223,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if [ -z "${DEPLOY_COMMAND}" ]; then
-            echo "DEPLOY_COMMAND is not configured; skipping remote health check."
+          if [ "${HAS_EC2_DEPLOY_TARGET}" != "true" ] && [ -z "${DEPLOY_COMMAND}" ]; then
+            echo "Skipping remote health check."
             exit 0
           fi
-          case "${HEALTH_URL}" in
-            http*) curl --fail --retry 12 --retry-delay 5 "${HEALTH_URL}" ;;
-            *) echo "Runtime health command: ${HEALTH_URL}" ;;
-          esac
+          if [ -z "${HEALTH_URL}" ]; then
+            echo "Skipping remote health check."
+            exit 0
+          fi
+          curl --fail --retry 12 --retry-delay 5 "${HEALTH_URL}"
 
   smoke-test:
     name: Smoke Test
@@ -194,11 +242,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if [ -z "${DEPLOY_COMMAND}" ]; then
-            echo "DEPLOY_COMMAND is not configured; skipping remote smoke test."
+          if [ "${HAS_EC2_DEPLOY_TARGET}" != "true" ] && [ -z "${DEPLOY_COMMAND}" ]; then
+            echo "Skipping remote smoke test."
             exit 0
           fi
-          case "${READY_URL}" in
-            http*) curl --fail --retry 12 --retry-delay 5 "${READY_URL}" ;;
-            *) echo "Runtime smoke command: ${READY_URL}" ;;
-          esac
+          if [ -z "${READY_URL}" ]; then
+            echo "Skipping remote smoke test."
+            exit 0
+          fi
+          curl --fail --retry 12 --retry-delay 5 "${READY_URL}"
