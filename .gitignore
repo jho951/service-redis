@@ -42,6 +42,7 @@ out/
 # Secrets
 .env*
 .envrc
+!deploy/ec2/.env.production.example
 docker/.generated
 *.key
 *.pem

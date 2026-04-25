@@ -1,0 +1,56 @@
+name: redis-service-ec2
+
+services:
+  redis-server:
+    image: ${REDIS_IMAGE:?REDIS_IMAGE is required}
+    pull_policy: always
+    container_name: ${REDIS_CONTAINER_NAME:-central-redis}
+    restart: unless-stopped
+    environment:
+      REDIS_CONFIG_FILE: ${REDIS_CONFIG_FILE:-/usr/local/etc/redis/prod/redis.conf}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+      REDIS_MAXMEMORY: ${REDIS_MAXMEMORY:-256mb}
+      REDIS_MAXMEMORY_POLICY: ${REDIS_MAXMEMORY_POLICY:-allkeys-lru}
+    ports:
+      - "${REDIS_BIND_HOST:-127.0.0.1}:${REDIS_BIND_PORT:-6379}:6379"
+    volumes:
+      - redis-data-prod:/data
+      - redis-logs-prod:/var/log/redis
+    networks:
+      shared-service-network:
+        aliases:
+          - central-redis
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - if [ -n "$${REDIS_PASSWORD}" ]; then redis-cli -a "$${REDIS_PASSWORD}" ping | grep PONG; else redis-cli ping | grep PONG; fi
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  redis-exporter:
+    image: ${REDIS_EXPORTER_IMAGE:-oliver006/redis_exporter:v1.67.0}
+    container_name: ${REDIS_EXPORTER_CONTAINER_NAME:-central-redis-exporter}
+    restart: unless-stopped
+    profiles:
+      - monitoring
+    environment:
+      REDIS_ADDR: redis://redis-server:6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+    ports:
+      - "${REDIS_EXPORTER_BIND_HOST:-127.0.0.1}:${REDIS_EXPORTER_PORT:-9121}:9121"
+    depends_on:
+      redis-server:
+        condition: service_healthy
+    networks:
+      - shared-service-network
+
+volumes:
+  redis-data-prod:
+  redis-logs-prod:
+
+networks:
+  shared-service-network:
+    external: true
+    name: ${SHARED_SERVICE_NETWORK:-${SERVICE_SHARED_NETWORK:-service-backbone-shared}}
